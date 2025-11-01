@@ -1,0 +1,272 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: verify-ai-postgres
+    environment:
+      POSTGRES_USER: verify_user
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_DB: verify_ai_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U verify_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - verify-ai-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: verify-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - verify-ai-network
+
+  # API Gateway
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    container_name: verify-ai-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://verify_user:secure_password@postgres:5432/verify_ai_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/gateway:/app/services/gateway
+      - ./shared:/app/shared
+    networks:
+      - verify-ai-network
+    command: uvicorn services.gateway.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Text LIAR Model Server
+  text-liar-service:
+    build:
+      context: .
+      dockerfile: services/models/text_liar/Dockerfile
+    container_name: verify-ai-text-liar
+    ports:
+      - "8001:8001"
+    environment:
+      - MODEL_NAME=Arko007/fake-news-liar-political
+      - PORT=8001
+      - TORCH_DEVICE=cuda
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    networks:
+      - verify-ai-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Text Brain2 Model Server
+  text-brain2-service:
+    build:
+      context: .
+      dockerfile: services/models/text_brain2/Dockerfile
+    container_name: verify-ai-text-brain2
+    ports:
+      - "8002:8002"
+    environment:
+      - MODEL_NAME=Arko007/fact-check1-v3-final
+      - PORT=8002
+      - TORCH_DEVICE=cuda
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    networks:
+      - verify-ai-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Image Deepfake Detector
+  image-detector-service:
+    build:
+      context: .
+      dockerfile: services/models/image_detector/Dockerfile
+    container_name: verify-ai-image-detector
+    ports:
+      - "8003:8003"
+    environment:
+      - MODEL_NAME=Arko007/deepfake-image-detector
+      - PORT=8003
+      - TORCH_DEVICE=cuda
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    networks:
+      - verify-ai-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Video Deepfake Detector
+  video-detector-service:
+    build:
+      context: .
+      dockerfile: services/models/video_detector/Dockerfile
+    container_name: verify-ai-video-detector
+    ports:
+      - "8004:8004"
+    environment:
+      - MODEL_NAME=Arko007/deepfake-detector-dfd-sota
+      - PORT=8004
+      - TORCH_DEVICE=cuda
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    networks:
+      - verify-ai-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Voice Deepfake Detector
+  voice-detector-service:
+    build:
+      context: .
+      dockerfile: services/models/voice_detector/Dockerfile
+    container_name: verify-ai-voice-detector
+    ports:
+      - "8005:8005"
+    environment:
+      - MODEL_NAME=koyelog/deepfake-voice-detector-sota
+      - PORT=8005
+      - TORCH_DEVICE=cuda
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    networks:
+      - verify-ai-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Video Processing Worker
+  video-worker:
+    build:
+      context: .
+      dockerfile: services/video_worker/Dockerfile
+    container_name: verify-ai-video-worker
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://verify_user:secure_password@postgres:5432/verify_ai_db
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_VIDEO_URL=http://video-detector-service:8004
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - video-detector-service
+    volumes:
+      - ./services/video_worker:/app/services/video_worker
+      - ./shared:/app/shared
+    networks:
+      - verify-ai-network
+
+  # Trending Service
+  trending-service:
+    build:
+      context: .
+      dockerfile: services/trending/Dockerfile
+    container_name: verify-ai-trending
+    ports:
+      - "8006:8006"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://verify_user:secure_password@postgres:5432/verify_ai_db
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./services/trending:/app/services/trending
+      - ./shared:/app/shared
+    networks:
+      - verify-ai-network
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: verify-ai-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - verify-ai-network
+
+  # Grafana Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: verify-ai-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./infrastructure/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - verify-ai-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  model_cache:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  verify-ai-network:
+    driver: bridge

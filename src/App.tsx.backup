@@ -1,0 +1,258 @@
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { HeaderEnhanced } from './components/HeaderEnhanced';
+import { HeroSection } from './components/HeroSection';
+import { AnalyzePage } from './components/AnalyzePageEnhanced';
+import { TrendingPage } from './components/TrendingPage';
+import { CommunityPage } from './components/CommunityPage';
+import { AboutPage } from './components/AboutPage';
+import { ProfilePage } from './components/ProfilePage';
+import { SettingsPage } from './components/SettingsPage';
+import { LoginDialog } from './components/LoginDialogFirebase';
+import { ChromeExtensionSection } from './components/ChromeExtensionSection';
+import { Toaster } from './components/ui/sonner';
+import { toast } from 'sonner';
+import { useAuth } from './context/AuthContext';
+
+type Page = 'Home' | 'Analyze' | 'Trending' | 'Community' | 'About' | 'Profile' | 'Settings';
+
+export default function App() {
+  const { user, logout } = useAuth();
+  const [currentPage, setCurrentPage] = useState<Page>('Home');
+  const [language, setLanguage] = useState('en');
+  const [isDark, setIsDark] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+
+  // Initialize theme from system preference or localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+      setIsDark(true);
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  const handleThemeToggle = () => {
+    setIsDark(!isDark);
+    if (!isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
+
+  const handleNavigate = (page: Page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.info('You have been logged out');
+    } catch (error) {
+      toast.error('Logout failed');
+    }
+  };
+
+  const pageVariants = {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -20 },
+  };
+
+  const pageTransition = {
+    duration: 0.3,
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-slate-950 dark:via-blue-950 dark:to-purple-950 transition-colors duration-500">
+      <HeaderEnhanced
+        currentPage={currentPage.toLowerCase()}
+        onNavigate={(page) => handleNavigate(page.charAt(0).toUpperCase() + page.slice(1) as Page)}
+        language={language}
+        onLanguageChange={setLanguage}
+        isDark={isDark}
+        onThemeToggle={handleThemeToggle}
+        onLoginClick={() => setShowLoginDialog(true)}
+      />
+
+              )}
+
+        {currentPage === 'Settings' && (
+          <motion.div
+            key="settings"
+            initial="initial"
+            animate="in"
+            exit="out"
+            variants={pageVariants}
+            transition={pageTransition}
+          >
+            <SettingsPage />
+          </motion.div>
+        )}
+
+      </AnimatePresence>
+
+      <LoginDialog
+
+      <AnimatePresence mode="wait">
+        {currentPage === 'Home' && (
+          <motion.div
+            key="home"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition}
+          >
+            <HeroSection 
+              onAnalyzeClick={() => handleNavigate('Analyze')}
+              language={language}
+            />
+            <ChromeExtensionSection />
+          </motion.div>
+        )}
+
+        {currentPage === 'Analyze' && (
+          <motion.div
+            key="analyze"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition}
+          >
+            <AnalyzePage language={language} />
+          </motion.div>
+        )}
+
+        {currentPage === 'Trending' && (
+          <motion.div
+            key="trending"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition}
+          >
+            <TrendingPage language={language} />
+          </motion.div>
+        )}
+
+        {currentPage === 'Community' && (
+          <motion.div
+            key="community"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition}
+          >
+            <CommunityPage language={language} />
+          </motion.div>
+        )}
+
+        {currentPage === 'About' && (
+          <motion.div
+            key="about"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition}
+          >
+            <AboutPage />
+          </motion.div>
+        )}
+
+        {currentPage === 'Profile' && (
+          <motion.div
+            key="profile"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition}
+          >
+            {user ? (
+              <ProfilePage user={user} />
+            ) : (
+              <div className="min-h-screen pt-28 flex items-center justify-center">
+                <div className="text-center">
+                  <h3 className="mb-4">Please log in to view your profile</h3>
+                  <button
+                    onClick={() => setShowLoginDialog(true)}
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
+                  >
+                    Login
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Footer */}
+      <motion.footer
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1 }}
+        className="glass-card border-t mt-16"
+      >
+        <div className="container mx-auto px-4 py-12">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <h4 className="mb-4">VeriFy AI</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Fighting misinformation with advanced verification technology and community power.
+              </p>
+            </div>
+            <div>
+              <h4 className="mb-4">Product</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Features</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">How it Works</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Accuracy</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">API Access</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="mb-4">Resources</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Blog</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Guidelines</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Help Center</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Community</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="mb-4">Legal</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Privacy Policy</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Terms of Service</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Cookie Policy</a></li>
+                <li><a href="#" className="hover:text-blue-600 transition-colors">Contact Us</a></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-200 dark:border-gray-800 pt-8 text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              © 2025 VeriFy AI. All rights reserved. Built with care to combat misinformation.
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              This platform uses advanced verification technology. Not meant for collecting PII or securing sensitive data.
+            </p>
+          </div>
+        </div>
+      </motion.footer>
+
+      <Toaster />
+    </div>
+  );
+}

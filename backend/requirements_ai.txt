@@ -1,0 +1,26 @@
+# VeriFy AI Backend - Real AI Models
+# Requirements for AI-powered backend
+
+# Core API Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# AI & ML Models
+transformers==4.36.2
+torch==2.1.2
+Pillow==10.2.0
+numpy==1.26.3
+
+# Real-time Fact Checking
+tavily-python==0.3.3
+
+# Environment & Config
+python-dotenv==1.0.0
+
+# Email validation
+email-validator==2.1.0
+
+# Optional: For better performance
+# accelerate==0.25.0  # Uncomment for faster model loading
+# sentencepiece==0.1.99  # Uncomment if models require it
